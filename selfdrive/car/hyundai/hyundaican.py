@@ -6,7 +6,7 @@ hyundai_checksum = crcmod.mkCrcFun(0x11D, initCrc=0xFD, rev=False, xorOut=0xdf)
 def create_lkas11(packer, frame, car_fingerprint, apply_steer, steer_req,
                   torque_fault, lkas11, sys_warning, sys_state, enabled,
                   left_lane, right_lane,
-                  left_lane_depart, right_lane_depart):
+                  left_lane_depart, right_lane_depart, bus, ldws):
   values = lkas11
   values["CF_Lkas_LdwsSysState"] = sys_state
   values["CF_Lkas_SysWarning"] = 3 if sys_warning else 0
@@ -60,6 +60,9 @@ def create_lkas11(packer, frame, car_fingerprint, apply_steer, steer_req,
     # Genesis and Optima fault when forwarding while engaged
     values["CF_Lkas_LdwsActivemode"] = 2
 
+  if ldws:
+  	values["CF_Lkas_LdwsOpt_USM"] = 3
+
   dat = packer.make_can_msg("LKAS11", 0, values)[2]
 
   if car_fingerprint in CHECKSUM["crc8"]:
@@ -75,7 +78,7 @@ def create_lkas11(packer, frame, car_fingerprint, apply_steer, steer_req,
 
   values["CF_Lkas_Chksum"] = checksum
 
-  return packer.make_can_msg("LKAS11", 0, values)
+  return packer.make_can_msg("LKAS11", bus, values)
 
 
 def create_clu11(packer, frame, clu11, button, car_fingerprint):
@@ -171,3 +174,81 @@ def create_frt_radar_opt(packer):
     "CF_FCA_Equip_Front_Radar": 1,
   }
   return packer.make_can_msg("FRT_RADAR11", 0, frt_radar11_values)
+
+def create_mdps12(packer, frame, mdps12):
+  values = mdps12
+  values["CF_Mdps_ToiActive"] = 0
+  values["CF_Mdps_ToiUnavail"] = 1
+  values["CF_Mdps_MsgCount2"] = frame % 0x100
+  values["CF_Mdps_Chksum2"] = 0
+
+  dat = packer.make_can_msg("MDPS12", 2, values)[2]
+  checksum = sum(dat) % 256
+  values["CF_Mdps_Chksum2"] = checksum
+  
+  return packer.make_can_msg("MDPS12", 2, values)
+
+def create_scc11(packer, frame, set_speed, lead_visible, scc_live, lead_dist, lead_vrel, lead_yrel, car_fingerprint, speed, standstill, gap_setting, stopping, radar_recognition, scc11):
+  values = scc11
+  values["AliveCounterACC"] = frame // 2 % 0x10
+  if not radar_recognition:
+    if stopping:
+      values["SCCInfoDisplay"] = 4
+    else:
+      values["SCCInfoDisplay"] = 0
+  if not scc_live:
+    if standstill:
+      values["SCCInfoDisplay"] = 4
+    else:
+      values["SCCInfoDisplay"] = 0
+    values["DriverAlertDisplay"] = 0
+    values["MainMode_ACC"] = 1
+    values["VSetDis"] = set_speed
+    values["TauGapSet"] = gap_setting
+    values["ObjValid"] = lead_visible
+    values["ACC_ObjStatus"] = lead_visible
+    values["ACC_ObjRelSpd"] = clip(lead_vrel if lead_visible else 0, -20., 20.)
+    values["ACC_ObjDist"] = clip(lead_dist if lead_visible else 204.6, 0., 204.6)
+    values["ACC_ObjLatPos"] = clip(-lead_yrel if lead_visible else 0, -170., 170.)
+
+  return packer.make_can_msg("SCC11", 0, values)
+
+def create_scc12(packer, apply_accel, enabled, scc_live, gaspressed, brakepressed, aebcmdact, car_fingerprint, speed, stopping, standstill, radar_recognition, cnt, scc12):
+  values = scc12
+  if not aebcmdact:
+    if enabled and car_fingerprint == CAR.NIRO_EV_DE:
+      values["ACCMode"] = 2 if gaspressed and (apply_accel > -0.2) else 1
+      values["aReqRaw"] = apply_accel
+      values["aReqValue"] = apply_accel
+      if not radar_recognition and standstill and stopping:
+        if stopping:
+          values["StopReq"] = 1
+        else:
+          values["StopReq"] = 0
+    elif enabled and not brakepressed:
+      values["ACCMode"] = 2 if gaspressed and (apply_accel > -0.2) else 1
+      values["aReqRaw"] = apply_accel
+      values["aReqValue"] = apply_accel
+      if not radar_recognition and standstill and stopping:
+        values["aReqRaw"] = 0
+        values["aReqValue"] = 0
+        if stopping:
+          values["StopReq"] = 1
+        else:
+          values["StopReq"] = 0
+    else:
+      values["ACCMode"] = 0
+      values["aReqRaw"] = 0
+      values["aReqValue"] = 0
+  if not scc_live:
+    if apply_accel < 0.0 and standstill:
+      values["StopReq"] = 1
+    else:
+      values["StopReq"] = 0
+    values["ACCMode"] = 1 if enabled else 0 # 2 if gas padel pressed
+  values["CR_VSM_Alive"] = cnt
+  values["CR_VSM_ChkSum"] = 0
+  dat = packer.make_can_msg("SCC12", 0, values)[2]
+  values["CR_VSM_ChkSum"] = 16 - sum([sum(divmod(i, 16)) for i in dat]) % 16
+
+  return packer.make_can_msg("SCC12", 0, values)

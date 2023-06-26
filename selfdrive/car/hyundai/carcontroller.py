@@ -56,6 +56,14 @@ class CarController:
     self.car_fingerprint = CP.carFingerprint
     self.last_button_frame = 0
 
+    self.fca11supcnt = self.fca11inc = self.fca11alivecnt = self.fca11cnt13 = 0
+    self.fca11maxcnt = 0xD
+    self.ldws_fix = self.c_params.get_bool("LdwsCarFix")
+
+    self.lkas_onoff_counter = 0
+    self.lkas_temp_disabled = False
+    self.lkas_temp_disabled_timer = 0
+
   def update(self, CC, CS, now_nanos):
     actuators = CC.actuators
     hud_control = CC.hudControl
@@ -158,10 +166,26 @@ class CarController:
                 can_sends.append(hyundaicanfd.create_buttons(self.packer, self.CP, self.CAN, CS.buttons_counter+1, Buttons.RES_ACCEL))
               self.last_button_frame = self.frame
     else:
-      can_sends.append(hyundaican.create_lkas11(self.packer, self.frame, self.car_fingerprint, apply_steer, lat_active,
+      can_sends.append(hyundaican.create_lkas11(self.packer, self.frame, self.car_fingerprint, apply_steer, lat_active and not self.lkas_temp_disabled,
                                                 torque_fault, CS.lkas11, sys_warning, sys_state, CC.enabled,
                                                 hud_control.leftLaneVisible, hud_control.rightLaneVisible,
-                                                left_lane_warning, right_lane_warning))
+                                                left_lane_warning, right_lane_warning,0,self.ldws_fix))
+      
+      if self.CP.sccBus: # send lkas11 bus 1 or 2 if scc bus is
+        can_sends.append(hyundaican.create_lkas11(self.packer, self.frame, self.car_fingerprint, apply_steer, lat_active and not self.lkas_temp_disabled,
+                                                torque_fault, CS.lkas11, sys_warning, sys_state, CC.enabled,
+                                                hud_control.leftLaneVisible, hud_control.rightLaneVisible,
+                                                left_lane_warning, right_lane_warning, self.CP.sccBus, self.ldws_fix))
+      if self.CP.mdpsBus: # send lkas11 bus 1 if mdps is bus 1
+        can_sends.append(hyundaican.create_lkas11(self.packer, self.frame, self.car_fingerprint, apply_steer, lat_active and not self.lkas_temp_disabled,
+                                                torque_fault, CS.lkas11, sys_warning, sys_state, CC.enabled,
+                                                hud_control.leftLaneVisible, hud_control.rightLaneVisible,
+                                                left_lane_warning, right_lane_warning, 1, self.ldws_fix))
+        if self.frame % 2: # send clu11 to mdps if it is not on bus 0
+          can_sends.append(hyundaican.create_clu11(self.packer, self.frame, CS.clu11, Buttons.NONE, enabled_speed, self.CP.mdpsBus))
+
+      if self.CP.mdpsBus: # send mdps12 to LKAS to prevent LKAS error
+        can_sends.append(create_mdps12(self.packer, self.frame, CS.mdps12))
 
       if not self.CP.openpilotLongitudinalControl:
         if CC.cruiseControl.cancel:
@@ -198,4 +222,4 @@ class CarController:
     new_actuators.accel = accel
 
     self.frame += 1
-    return new_actuators, can_sends
+    return new_actuators, can_sends, self.lkas_temp_disabled

@@ -45,9 +45,17 @@ class CarState(CarStateBase):
 
     self.params = CarControllerParams(CP)
 
-  def update(self, cp, cp_cam):
+    self.lkas_button_on = True
+    self.cruise_main_button = 0
+    self.mdps_error_cnt = 0
+
+  def update(self, cp, cp2, cp_cam):
     if self.CP.carFingerprint in CANFD_CAR:
       return self.update_canfd(cp, cp_cam)
+    
+    cp_mdps = cp2 if self.CP.mdpsBus == 1 else cp
+    cp_sas = cp2 if self.CP.sasBus else cp
+    cp_scc = cp_cam if self.CP.sccBus == 2 else cp2 if self.CP.sccBus == 1 else cp
 
     ret = car.CarState.new_message()
     cp_cruise = cp_cam if self.CP.carFingerprint in CAMERA_SCC_CAR else cp
@@ -87,11 +95,12 @@ class CarState(CarStateBase):
     ret.yawRate = cp.vl["ESP12"]["YAW_RATE"]
     ret.leftBlinker, ret.rightBlinker = self.update_blinker_from_lamp(
       50, cp.vl["CGW1"]["CF_Gway_TurnSigLh"], cp.vl["CGW1"]["CF_Gway_TurnSigRh"])
-    ret.steeringTorque = cp.vl["MDPS12"]["CR_Mdps_StrColTq"]
-    ret.steeringTorqueEps = cp.vl["MDPS12"]["CR_Mdps_OutTq"]
+    ret.steeringTorque = cp_mdps.vl["MDPS12"]["CR_Mdps_StrColTq"]
+    ret.steeringTorqueEps = cp_mdps.vl["MDPS12"]["CR_Mdps_OutTq"]
     ret.steeringPressed = self.update_steering_pressed(abs(ret.steeringTorque) > self.params.STEER_THRESHOLD, 5)
-    ret.steerFaultTemporary = cp.vl["MDPS12"]["CF_Mdps_ToiUnavail"] != 0 or cp.vl["MDPS12"]["CF_Mdps_ToiFlt"] != 0
+    ret.steerFaultTemporary = cp_mdps.vl["MDPS12"]["CF_Mdps_ToiUnavail"] != 0 or cp.vl["MDPS12"]["CF_Mdps_ToiFlt"] != 0
 
+    self.Mdps_ToiUnavail = cp_mdps.vl["MDPS12"]["CF_Mdps_ToiUnavail"]
     # cruise state
     if self.CP.openpilotLongitudinalControl:
       # These are not used for engage/disengage since openpilot keeps track of state using the buttons
@@ -149,10 +158,12 @@ class CarState(CarStateBase):
     # save the entire LKAS11 and CLU11
     self.lkas11 = copy.copy(cp_cam.vl["LKAS11"])
     self.clu11 = copy.copy(cp.vl["CLU11"])
-    self.steer_state = cp.vl["MDPS12"]["CF_Mdps_ToiActive"]  # 0 NOT ACTIVE, 1 ACTIVE
+    #self.steer_state = cp.vl["MDPS12"]["CF_Mdps_ToiActive"]  # 0 NOT ACTIVE, 1 ACTIVE
     self.prev_cruise_buttons = self.cruise_buttons[-1]
     self.cruise_buttons.extend(cp.vl_all["CLU11"]["CF_Clu_CruiseSwState"])
     self.main_buttons.extend(cp.vl_all["CLU11"]["CF_Clu_CruiseSwMain"])
+
+    self.mdps12 = copy.copy(cp_mdps.vl["MDPS12"])
 
     return ret
 
@@ -331,6 +342,29 @@ class CarState(CarStateBase):
           ("CF_VSM_DecCmdAct", "SCC12"),
         ]
 
+    if CP.mdpsBus == 0:
+      signals += [
+        ("CR_Mdps_StrColTq", "MDPS12"),
+        ("CF_Mdps_Def", "MDPS12"),
+        ("CF_Mdps_ToiActive", "MDPS12"),
+        ("CF_Mdps_ToiUnavail", "MDPS12"),
+        ("CF_Mdps_ToiFlt", "MDPS12"),
+        ("CF_Mdps_MsgCount2", "MDPS12"),
+        ("CF_Mdps_Chksum2", "MDPS12"),
+        ("CF_Mdps_SErr", "MDPS12"),
+        ("CR_Mdps_StrTq", "MDPS12"),
+        ("CF_Mdps_FailStat", "MDPS12"),
+        ("CR_Mdps_OutTq", "MDPS12")
+      ]
+      checks += [("MDPS12", 50)]
+
+    if CP.sasBus == 0:
+      signals += [
+        ("SAS_Angle", "SAS11"),
+        ("SAS_Speed", "SAS11")
+      ]
+      checks += [("SAS11", 100)]
+
     if CP.enableBsm:
       signals += [
         ("CF_Lca_IndLeft", "LCA11"),
@@ -366,7 +400,35 @@ class CarState(CarStateBase):
       signals.append(("CF_Lvr_Gear", "LVR12"))
       checks.append(("LVR12", 100))
 
-    return CANParser(DBC[CP.carFingerprint]["pt"], signals, checks, 0)
+    return CANParser(DBC[CP.carFingerprint]["pt"], signals, checks, 0, enforce_checks=False)
+
+  @staticmethod
+  def get_can2_parser(CP):
+    signals = []
+    checks = []
+    if CP.mdpsBus == 1:
+      signals += [
+        ("CR_Mdps_StrColTq", "MDPS12"),
+        ("CF_Mdps_Def", "MDPS12"),
+        ("CF_Mdps_ToiActive", "MDPS12"),
+        ("CF_Mdps_ToiUnavail", "MDPS12"),
+        ("CF_Mdps_ToiFlt", "MDPS12"),
+        ("CF_Mdps_MsgCount2", "MDPS12"),
+        ("CF_Mdps_Chksum2", "MDPS12"),
+        ("CF_Mdps_SErr", "MDPS12"),
+        ("CR_Mdps_StrTq", "MDPS12"),
+        ("CF_Mdps_FailStat", "MDPS12"),
+        ("CR_Mdps_OutTq", "MDPS12")
+      ]
+      checks += [("MDPS12", 50)]
+    if CP.sasBus == 1:
+      signals += [
+        ("SAS_Angle", "SAS11"),
+        ("SAS_Speed", "SAS11")
+      ]
+      checks += [("SAS11", 100)]
+
+    return CANParser(DBC[CP.carFingerprint]["pt"], signals, checks, 1, enforce_checks=False)
 
   @staticmethod
   def get_cam_can_parser(CP):

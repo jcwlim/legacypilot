@@ -24,6 +24,7 @@ const int UI_BORDER_SIZE = 30;
 const int UI_HEADER_HEIGHT = 420;
 
 const int UI_FREQ = 20; // Hz
+const int BACKLIGHT_OFFROAD = 50;
 typedef cereal::CarControl::HUDControl::AudibleAlert AudibleAlert;
 
 #ifdef QCOM
@@ -152,6 +153,8 @@ typedef struct UIScene {
   float accel_sensor, gyro_sensor;
   #endif
 
+  bool navigate_on_openpilot = false;
+
   float light_sensor;
   bool started, ignition, is_metric, map_on_left, longitudinal_control;
   uint64_t started_frame;
@@ -180,7 +183,6 @@ public:
   UIStatus status;
   UIScene scene = {};
 
-  bool awake;
   QString language;
 
   QTransform car_space_transform;
@@ -207,6 +209,10 @@ class Device : public QObject {
 
 public:
   Device(QObject *parent = 0);
+  bool isAwake() { return awake; }
+  void setOffroadBrightness(int brightness) {
+    offroad_brightness = std::clamp(brightness, 0, 100);
+  }
 
 private:
   #ifdef QCOM
@@ -216,6 +222,8 @@ private:
   bool awake = false;
   int interactive_timeout = 0;
   bool ignition_on = false;
+
+  int offroad_brightness = BACKLIGHT_OFFROAD;
   int last_brightness = 0;
   FirstOrderFilter brightness_filter;
   QFuture<void> brightness_future;
@@ -226,12 +234,14 @@ private:
 
 signals:
   void displayPowerChanged(bool on);
-  void interactiveTimout();
+  void interactiveTimeout();
 
 public slots:
-  void resetInteractiveTimout();
+  void resetInteractiveTimeout();
   void update(const UIState &s);
 };
+
+Device *device();
 
 void ui_update_params(UIState *s);
 int get_path_length_idx(const cereal::XYZTData::Reader &line, const float path_height);

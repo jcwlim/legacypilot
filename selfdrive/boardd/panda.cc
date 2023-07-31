@@ -19,6 +19,8 @@ Panda::Panda(std::string serial, uint32_t bus_offset) : bus_offset(bus_offset) {
 #ifndef __APPLE__
     handle = std::make_unique<PandaSpiHandle>(serial);
     LOGW("connected to %s over SPI", serial.c_str());
+#else
+    throw e;
 #endif
 #endif
   }

@@ -12,7 +12,7 @@ from selfdrive.hardware import EON
 
 TRAJECTORY_SIZE = 33
 if EON:
-  CAMERA_OFFSET = -0.06
+  CAMERA_OFFSET = 0.15
 else:
   CAMERA_OFFSET = 0.04
 

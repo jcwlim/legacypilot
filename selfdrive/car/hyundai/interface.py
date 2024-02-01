@@ -130,7 +130,7 @@ class CarInterface(CarInterfaceBase):
       ret.wheelbase = 2.7
       ret.steerRatio = 13.73  # Spec
       ret.tireStiffnessFactor = 0.385
-      if candidate in (CAR.IONIQ, CAR.IONIQ_EV_LTD, CAR.IONIQ_PHEV_2019):
+      if candidate in (CAR.IONIQ_EV_LTD, CAR.IONIQ_PHEV_2019):
         ret.minSteerSpeed = 32 * CV.MPH_TO_MS
     elif candidate in (CAR.IONIQ_5, CAR.IONIQ_6):
       ret.mass = 1948
@@ -277,15 +277,22 @@ class CarInterface(CarInterfaceBase):
       ret.longitudinalTuning.kiV = [0.0]
       ret.experimentalLongitudinalAvailable = candidate not in (CANFD_UNSUPPORTED_LONGITUDINAL_CAR | CANFD_RADAR_SCC_CAR)
     else:
-      ret.longitudinalTuning.kpV = [0.5]
-      ret.longitudinalTuning.kiV = [0.0]
+      #ret.longitudinalTuning.kpV = [0.5]
+      #ret.longitudinalTuning.kiV = [0.0]
+      ret.longitudinalTuning.kpBP = [2.0, 7.0]
+      ret.longitudinalTuning.kpV = [0.4, 0.9]
+
+      ret.longitudinalTuning.kiBP = [2.0, 7.0]
+      ret.longitudinalTuning.kiV = [0.0, 0.15]
+
       ret.experimentalLongitudinalAvailable = candidate not in (UNSUPPORTED_LONGITUDINAL_CAR | CAMERA_SCC_CAR)
     ret.openpilotLongitudinalControl = experimental_long and ret.experimentalLongitudinalAvailable
     ret.pcmCruise = not ret.openpilotLongitudinalControl
 
     ret.stoppingControl = True
     ret.startingState = True
-    ret.vEgoStarting = 0.1
+    ret.vEgoStarting = 0.55
+    ret.vEgoStopping = 0.15 #0.25
     ret.startAccel = 1.0
     ret.longitudinalActuatorDelayLowerBound = 0.5
     ret.longitudinalActuatorDelayUpperBound = 0.5

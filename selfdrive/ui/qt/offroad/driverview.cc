@@ -1,5 +1,6 @@
 #include "selfdrive/ui/qt/offroad/driverview.h"
 
+#include <algorithm>
 #include <QPainter>
 
 #include "selfdrive/ui/qt/qt_window.h"
@@ -41,10 +42,12 @@ void DriverViewScene::showEvent(QShowEvent* event) {
   is_rhd = params.getBool("IsRhdDetected");
   #endif
   params.putBool("IsDriverViewEnabled", true);
+  device()->resetInteractiveTimeout(60);
 }
 
 void DriverViewScene::hideEvent(QHideEvent* event) {
   params.putBool("IsDriverViewEnabled", false);
+  device()->resetInteractiveTimeout();
 }
 
 void DriverViewScene::frameUpdated() {
@@ -61,7 +64,7 @@ void DriverViewScene::paintEvent(QPaintEvent* event) {
   if (!frame_updated) {
     p.setPen(Qt::white);
     p.setRenderHint(QPainter::TextAntialiasing);
-    configFont(p, "Inter", 100, "Bold");
+    p.setFont(InterFont(100, QFont::Bold));
     p.drawText(geometry(), Qt::AlignCenter, tr("camera starting"));
     return;
   }
@@ -107,7 +110,7 @@ void DriverViewScene::paintEvent(QPaintEvent* event) {
   if (!frame_updated) {
     p.setPen(Qt::white);
     p.setRenderHint(QPainter::TextAntialiasing);
-    configFont(p, "Inter", 100, "Bold");
+    p.setFont(InterFont(100, QFont::Bold));
     p.drawText(geometry(), Qt::AlignCenter, tr("camera starting"));
     return;
   }

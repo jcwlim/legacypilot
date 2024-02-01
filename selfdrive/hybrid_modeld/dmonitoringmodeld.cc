@@ -13,7 +13,7 @@ ExitHandler do_exit;
 
 void run_model(DMonitoringModelState &model, VisionIpcClient &vipc_client) {
   PubMaster pm({"driverState"});
-  double last = 0;
+//  double last = 0;
 
   while (!do_exit) {
     VisionIpcBufExtra extra = {};
@@ -28,7 +28,7 @@ void run_model(DMonitoringModelState &model, VisionIpcClient &vipc_client) {
     dmonitoring_publish(pm, extra.frame_id, res, (t2 - t1) / 1000.0, model.output);
 
     //printf("dmonitoring process: %.2fms, from last %.2fms\n", t2 - t1, t1 - last);
-    last = t1;
+//    last = t1;
   }
 }
 
@@ -46,7 +46,7 @@ int main(int argc, char **argv) {
 
   // run the models
   if (vipc_client.connected) {
-    LOGW("connected with buffer size: %d", vipc_client.buffers[0].len);
+    LOGW("connected with buffer size: %zu", vipc_client.buffers[0].len);
     run_model(model, vipc_client);
   }
 

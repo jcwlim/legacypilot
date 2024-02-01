@@ -1,10 +1,10 @@
 import math
 
 from cereal import car, log
-from common.conversions import Conversions as CV
-from common.numpy_fast import clip, interp
-from common.realtime import DT_MDL
-from selfdrive.hybrid_modeld.constants import T_IDXS
+from openpilot.common.conversions import Conversions as CV
+from openpilot.common.numpy_fast import clip, interp
+from openpilot.common.realtime import DT_MDL
+from openpilot.selfdrive.hybrid_modeld.constants import T_IDXS
 
 # WARNING: this value was determined based on the model's training distribution,
 #          model predictions above this speed can be unpredictable
@@ -13,7 +13,7 @@ V_CRUISE_MIN = 8
 V_CRUISE_MAX = 145
 V_CRUISE_UNSET = 255
 V_CRUISE_INITIAL = 40
-V_CRUISE_INITIAL_EXPERIMENTAL_MODE = 105
+V_CRUISE_INITIAL_EXPERIMENTAL_MODE = 40
 IMPERIAL_INCREMENT = 1.6  # should be CV.MPH_TO_KPH, but this causes rounding errors
 
 MIN_SPEED = 1.0
@@ -37,6 +37,12 @@ CRUISE_INTERVAL_SIGN = {
   ButtonType.decelCruise: -1,
 }
 
+# rick - for 0813
+LAT_MPC_N = 16
+class MPC_COST_LAT:
+  PATH = 1.0
+  HEADING = 1.0
+  STEER_RATE = 1.0
 
 class VCruiseHelper:
   def __init__(self, CP):
@@ -194,7 +200,8 @@ def get_lag_adjusted_curvature(CP, v_ego, psis, curvatures, curvature_rates):
   return safe_desired_curvature, safe_desired_curvature_rate
 
 
-def get_friction(lateral_accel_error: float, lateral_accel_deadzone: float, friction_threshold: float, torque_params: car.CarParams.LateralTorqueTuning, friction_compensation: bool) -> float:
+def get_friction(lateral_accel_error: float, lateral_accel_deadzone: float, friction_threshold: float,
+                 torque_params: car.CarParams.LateralTorqueTuning, friction_compensation: bool) -> float:
   friction_interp = interp(
     apply_center_deadzone(lateral_accel_error, lateral_accel_deadzone),
     [-friction_threshold, friction_threshold],

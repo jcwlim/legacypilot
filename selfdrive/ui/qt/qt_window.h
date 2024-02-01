@@ -15,7 +15,10 @@
 #include "system/hardware/hw.h"
 
 const QString ASSET_PATH = ":/";
-
-const int WIDE_WIDTH = 2160;
+#ifdef QCOM
+const QSize DEVICE_SCREEN_SIZE = {1920, 1080};
+#else
+const QSize DEVICE_SCREEN_SIZE = {2160, 1080};
+#endif
 
 void setMainWindow(QWidget *w);

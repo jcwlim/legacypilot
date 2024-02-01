@@ -125,6 +125,11 @@ function two_init {
   LIB_PATH="/data/openpilot/system/hardware/eon/libs"
   PY_LIB_DEST="/system/comma/usr/lib/python3.8/site-packages"
   mount -o remount,rw /system
+  # libgfortran
+  if [ ! -f "/system/comma/usr/lib/libgfortran.so.5.0.0" ]; then
+    echo "Installing libgfortran..."
+    tar -zxvf "$LIB_PATH/libgfortran.tar.gz" -C /system/comma/usr/lib/
+  fi
   # laika
   MODULE="hatanaka"
   if [ ! -d "$PY_LIB_DEST/$MODULE" ]; then
@@ -160,6 +165,12 @@ function two_init {
     echo "Installing spidev.cpython-38.so..."
     cp -f "$LIB_PATH/spidev.cpython-38.so" "$PY_LIB_DEST/"
   fi
+  # StrEnum in values.py
+  MODULE="strenum"
+  if [ ! -d "$PY_LIB_DEST/$MODULE" ]; then
+    echo "Installing $MODULE..."
+    tar -zxvf "$LIB_PATH/$MODULE.tar.gz" -C "$PY_LIB_DEST/"
+  fi
   mount -o remount,r /system
 
   # Check for NEOS update
@@ -190,6 +201,11 @@ function two_init {
 }
 
 function agnos_init {
+  # wait longer for weston to come up
+  if [ -f "$BASEDIR/prebuilt" ]; then
+    sleep 3
+  fi
+
   # TODO: move this to agnos
   sudo rm -f /data/etc/NetworkManager/system-connections/*.nmmeta
 
